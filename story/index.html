@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Наша история</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script>
+    // Fallback для iOS: если GSAP не загрузился, пробуем локальный файл
+    if (typeof gsap === 'undefined') {
+      const s = document.createElement('script');
+      s.src = 'js/gsap.min.js';
+      s.onerror = function() {
+        console.error('GSAP не загружен. Пожалуйста, скачайте https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js и поместите в папку js/ как gsap.min.js');
+      };
+      document.head.appendChild(s);
+    }
+  </script>
+  <style>
+    * {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #0f0f14;
+      color: white;
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    #app {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      min-height: -webkit-fill-available;
+      overflow: hidden;
+      cursor: grab;
+      touch-action: pan-y;
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-top: env(safe-area-inset-top);
+    }
+
+    body.no-gsap #app {
+      cursor: default;
+    }
+
+    #app:active {
+      cursor: grabbing;
+    }
+
+    .screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      min-height: 100vh;
+      padding: 24px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      text-align: center;
+      opacity: 0;
+      transform: scale(0.95);
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .screen.active {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .progress-indicator {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      z-index: 100;
+      padding: 8px 16px;
+      background: rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+    }
+
+    .progress-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+      transition: all 0.3s ease;
+    }
+
+    .progress-dot.active {
+      background: #ff4d6d;
+      width: 24px;
+      border-radius: 4px;
+    }
+
+    .progress-dot.completed {
+      background: rgba(255, 255, 255, 0.6);
+    }
+
+    .music-control {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(10px);
+      color: white;
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+      z-index: 100;
+    }
+
+    .music-control:hover {
+      background: rgba(255, 77, 109, 0.3);
+      border-color: #ff4d6d;
+      transform: scale(1.1);
+    }
+
+    .music-control.playing {
+      border-color: #ff4d6d;
+      background: rgba(255, 77, 109, 0.2);
+    }
+
+    .music-control.playing::after {
+      content: '';
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 2px solid #ff4d6d;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      50% {
+        transform: scale(1.3);
+        opacity: 0;
+      }
+    }
+
+    audio {
+      display: none;
+    }
+
+    .swipe-hint {
+      position: fixed;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 14px;
+      opacity: 0.7;
+      pointer-events: none;
+      transition: opacity 0.5s ease;
+      z-index: 50;
+      font-weight: 300;
+    }
+
+    .swipe-hint.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .progress-indicator.final {
+      transition: opacity 1s ease;
+    }
+
+    img {
+      max-width: 100%;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 3 / 4;
+      border-radius: 16px;
+      margin-bottom: 16px;
+      object-fit: cover;
+      display: block;
+    }
+
+    p {
+      font-size: 18px;
+      line-height: 1.6;
+      white-space: pre-line;
+      margin: 16px 0;
+    }
+
+
+    /* Адаптивность для ноутбуков и больших экранов */
+    @media (min-width: 768px) {
+      .screen {
+        padding: 40px;
+      }
+
+      .screen > * {
+        max-width: 800px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      img {
+        max-width: 600px;
+        width: auto;
+        aspect-ratio: auto;
+      }
+
+      p {
+        font-size: 20px;
+        max-width: 600px;
+      }
+
+      .progress-indicator {
+        top: 30px;
+      }
+    }
+
+    /* Адаптивность для планшетов */
+    @media (min-width: 481px) and (max-width: 767px) {
+      .screen {
+        padding: 32px;
+      }
+
+      p {
+        font-size: 19px;
+      }
+    }
+
+    /* Адаптивность для телефонов */
+    @media (max-width: 480px) {
+      .screen {
+        padding: 16px;
+      }
+
+      img {
+        border-radius: 12px;
+      }
+
+      p {
+        font-size: 16px;
+      }
+
+      .progress-indicator {
+        top: 16px;
+        gap: 6px;
+        padding: 6px 12px;
+      }
+
+      .progress-dot {
+        width: 6px;
+        height: 6px;
+      }
+
+      .progress-dot.active {
+        width: 20px;
+      }
+
+      .music-control {
+        top: 16px;
+        right: 16px;
+        width: 45px;
+        height: 45px;
+        font-size: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <noscript>
+    <div class="screen active">
+      <p>Для работы этой страницы необходим JavaScript. Пожалуйста, включите JavaScript в настройках браузера.</p>
+    </div>
+  </noscript>
+</div>
+
+<!-- Аудио элемент -->
+<audio id="backgroundMusic" loop>
+  <source src="music.mp3" type="audio/mpeg">
+  <source src="music.ogg" type="audio/ogg">
+  Ваш браузер не поддерживает аудио элемент.
+</audio>
+
+<!-- Кнопка управления музыкой -->
+<button class="music-control" id="musicControl" aria-label="Включить музыку" title="Нажмите для воспроизведения музыки">
+  ▶
+</button>
+
+<script>
+  const story = [
+    {
+      text: "Это история не для всех.\nЭто наша история."
+    },
+    {
+      img: "img/1.jpg",
+      text: "Тот вечер, после которого всё стало по-другому"
+    },
+    {
+      img: "img/2.jpg",
+      text: "Мы тогда ещё не понимали, что это начало"
+    },
+    {
+      img: "img/3.jpg",
+      text: "С тобой даже обычные дни имеют смысл"
+    },
+    {
+      img: "img/4.jpg",
+      text: "Здесь я понял, что мне с тобой спокойно"
+    },
+    {
+      img: "img/5.jpg",
+      text: "Я хочу продолжать эту историю с тобой",
+      final: true
+    }
+  ];
+
+  let index = 0;
+  let prevIndex = 0;
+  const app = document.getElementById('app');
+  const audio = document.getElementById('backgroundMusic');
+  const musicControl = document.getElementById('musicControl');
+  let musicStarted = false;
+  let gsapAvailable = false;
+
+  // Предзагрузка картинок
+  story.forEach(s => {
+    if (s.img) {
+      const img = new Image();
+      img.src = s.img;
+    }
+  });
+  
+  // Переменные для свайпа с инерцией
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchStartTime = 0;
+  let velocity = 0;
+  let isSwiping = false;
+  let currentX = 0;
+  let startX = 0;
+  let isAnimating = false;
+
+  // Управление музыкой
+  function toggleMusic() {
+    if (!audio) return;
+    
+    if (audio.paused) {
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            musicControl.textContent = '♪';
+            musicControl.classList.add('playing');
+            musicStarted = true;
+          })
+          .catch(error => {
+            console.log('Не удалось воспроизвести музыку:', error);
+            musicControl.textContent = '▶';
+            musicControl.classList.remove('playing');
+          });
+      }
+    } else {
+      audio.pause();
+      musicControl.textContent = '▶';
+      musicControl.classList.remove('playing');
+    }
+  }
+
+  // Обработка ошибок загрузки аудио
+  if (audio) {
+    audio.addEventListener('error', (e) => {
+      console.warn('Ошибка загрузки аудио файла. Убедитесь, что файл music.mp3 или music.ogg существует в папке проекта.');
+      musicControl.style.opacity = '0.5';
+      musicControl.title = 'Аудио файл не найден';
+    });
+
+    audio.addEventListener('loadeddata', () => {
+      musicControl.title = 'Нажмите для воспроизведения музыки';
+    });
+  }
+
+  // Попытка автозапуска музыки после первого взаимодействия
+  function tryAutoPlayMusic() {
+    if (!musicStarted && audio) {
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            musicControl.textContent = '♪';
+            musicControl.classList.add('playing');
+            musicStarted = true;
+          })
+          .catch(() => {
+            // Автовоспроизведение заблокировано - пользователь должен нажать кнопку
+            musicControl.textContent = '▶';
+          });
+      }
+    }
+  }
+
+  // Обработчик клика на кнопку музыки
+  musicControl.addEventListener('click', toggleMusic);
+
+  function createProgressIndicator() {
+    let indicator = document.querySelector('.progress-indicator');
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.className = 'progress-indicator';
+      document.body.appendChild(indicator);
+    }
+    
+    const isFinal = story[index] && story[index].final;
+    const wasFinal = indicator.classList.contains('final');
+    
+    // Показываем прогресс обратно, если ушли с финального экрана
+    if (wasFinal && !isFinal) {
+      indicator.classList.remove('final');
+      // Убираем inline стили, которые могли быть установлены при скрытии
+      indicator.style.transition = '';
+      if (gsapAvailable && typeof gsap !== 'undefined') {
+        gsap.killTweensOf(indicator);
+        gsap.to(indicator, {
+          opacity: 1,
+          duration: 0.5,
+          ease: "power2.out"
+        });
+      } else {
+        indicator.style.opacity = '1';
+        indicator.style.transition = 'opacity 0.5s ease';
+      }
+    }
+    
+    // Скрываем прогресс на финальном экране
+    if (isFinal) {
+      indicator.classList.add('final');
+    } else {
+      indicator.classList.remove('final');
+    }
+    
+    indicator.innerHTML = '';
+    for (let i = 0; i < story.length; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'progress-dot';
+      if (i < index) {
+        dot.classList.add('completed');
+      } else if (i === index) {
+        dot.classList.add('active');
+      }
+      indicator.appendChild(dot);
+    }
+  }
+
+  function render() {
+    if (!app) {
+      console.error('Элемент #app не найден!');
+      return;
+    }
+
+    if (!story || !story[index]) {
+      console.error('История не найдена или индекс вне диапазона!');
+      return;
+    }
+
+    if (isAnimating) return;
+
+    // Получаем текущий экран
+    const currentScreen = app.querySelector('.screen.active');
+    const isFirstRender = !currentScreen;
+    
+    if (!isFirstRender) {
+      isAnimating = true;
+    }
+    
+    const nextScreenEl = document.createElement('div');
+    nextScreenEl.className = 'screen';
+
+    if (story[index].img) {
+      const img = document.createElement('img');
+      img.src = story[index].img;
+      img.alt = 'Фото';
+      img.loading = 'lazy';
+      img.onerror = function() {
+        console.warn('Не удалось загрузить изображение:', this.src);
+      };
+      nextScreenEl.appendChild(img);
+    }
+
+    const text = document.createElement('p');
+    text.innerText = story[index].text;
+    nextScreenEl.appendChild(text);
+
+    // Добавляем подсказку на первом экране
+    if (isFirstRender && index === 0) {
+      const hint = document.createElement('div');
+      hint.className = 'swipe-hint';
+      hint.innerText = 'Листай →';
+      nextScreenEl.appendChild(hint);
+      
+      // Скрываем подсказку через 2 секунды
+      setTimeout(() => {
+        hint.classList.add('hidden');
+        setTimeout(() => hint.remove(), 500);
+      }, 2000);
+    }
+
+    app.appendChild(nextScreenEl);
+
+    // GSAP анимация: fade + slight zoom
+    if (isFirstRender) {
+      // Первый рендер без анимации
+      nextScreenEl.classList.add('active');
+      nextScreenEl.style.opacity = '1';
+      nextScreenEl.style.transform = 'scale(1)';
+    } else if (gsapAvailable && typeof gsap !== 'undefined') {
+      // Анимация перехода с GSAP
+      gsap.to(currentScreen, {
+        opacity: 0,
+        scale: 0.9,
+        duration: 0.6,
+        ease: "power2.inOut",
+        onComplete: () => {
+          currentScreen.remove();
+        }
+      });
+
+      gsap.set(nextScreenEl, {
+        opacity: 0,
+        scale: 1.05
+      });
+      
+      // Для финального экрана добавляем delayed fade прогресса
+      const isFinal = story[index] && story[index].final;
+      
+      gsap.to(nextScreenEl, {
+        opacity: 1,
+        scale: 1,
+        duration: 0.6,
+        ease: "power2.inOut",
+        delay: isFinal ? 0.5 : 0,
+        onComplete: () => {
+          nextScreenEl.classList.add('active');
+          isAnimating = false;
+          
+          // Delayed fade для прогресса на финальном экране
+          if (isFinal) {
+            const indicator = document.querySelector('.progress-indicator');
+            if (indicator && gsapAvailable) {
+              // Отменяем предыдущие анимации, если они были
+              gsap.killTweensOf(indicator);
+              gsap.to(indicator, {
+                opacity: 0,
+                duration: 1,
+                delay: 2,
+                ease: "power2.out"
+              });
+            }
+          }
+        }
+      });
+    } else {
+      // Fallback без GSAP - простая замена
+      const isFinal = story[index] && story[index].final;
+      
+      if (currentScreen) {
+        currentScreen.style.opacity = '0';
+        setTimeout(() => currentScreen.remove(), 300);
+      }
+      nextScreenEl.classList.add('active');
+      nextScreenEl.style.opacity = '1';
+      nextScreenEl.style.transform = 'scale(1)';
+      setTimeout(() => {
+        isAnimating = false;
+        
+        // Delayed fade для прогресса на финальном экране (fallback)
+        if (isFinal) {
+          setTimeout(() => {
+            const indicator = document.querySelector('.progress-indicator');
+            if (indicator) {
+              indicator.style.transition = 'opacity 1s ease';
+              indicator.style.opacity = '0';
+            }
+          }, 2000);
+        } else {
+          // Убеждаемся, что прогресс виден, если не на финальном экране
+          const indicator = document.querySelector('.progress-indicator');
+          if (indicator && indicator.style.opacity === '0') {
+            indicator.style.transition = 'opacity 0.5s ease';
+            indicator.style.opacity = '1';
+          }
+        }
+      }, 300);
+    }
+
+    // Обновляем прогресс-индикатор
+    createProgressIndicator();
+  }
+
+  function nextScreen() {
+    // Блокируем свайп вперёд на финальном экране
+    if (story[index] && story[index].final) {
+      return;
+    }
+    
+    if (index < story.length - 1 && !isAnimating) {
+      prevIndex = index;
+      index++;
+      render();
+      tryAutoPlayMusic(); // Попытка автозапуска при первом взаимодействии
+    }
+  }
+
+  function prevScreen() {
+    if (index > 0 && !isAnimating) {
+      prevIndex = index;
+      index--;
+      render();
+      tryAutoPlayMusic(); // Попытка автозапуска при первом взаимодействии
+    }
+  }
+
+  function handleSwipeEnd(e) {
+    if (!isSwiping || isAnimating) return;
+    
+    const touchEndX = e.changedTouches ? e.changedTouches[0].screenX : e.screenX;
+    const touchEndY = e.changedTouches ? e.changedTouches[0].screenY : e.screenY;
+    const touchEndTime = Date.now();
+    
+    const deltaX = touchEndX - touchStartX;
+    const deltaY = touchEndY - touchStartY;
+    const deltaTime = touchEndTime - touchStartTime;
+    
+    const absDeltaX = Math.abs(deltaX);
+    const absDeltaY = Math.abs(deltaY);
+    
+    // Вычисляем скорость для инерции
+    velocity = deltaTime > 0 ? deltaX / deltaTime : 0;
+    const minSwipeDistance = 50;
+    const minSwipeVelocity = 0.3; // пикселей в миллисекунду
+    
+    // Проверяем, что это горизонтальный свайп
+    if (absDeltaX > absDeltaY) {
+      // Определяем, достаточно ли движения для переключения
+      const shouldSwitch = absDeltaX > minSwipeDistance || Math.abs(velocity) > minSwipeVelocity;
+      
+      if (shouldSwitch) {
+        if (deltaX > 0 && index > 0) {
+          // Свайп вправо - предыдущий экран
+          prevScreen();
+        } else if (deltaX < 0 && !story[index].final && index < story.length - 1) {
+          // Свайп влево - следующий экран (блокируем на финальном экране)
+          nextScreen();
+        }
+      }
+    }
+    
+    // Сбрасываем состояние
+    isSwiping = false;
+    currentX = 0;
+    startX = 0;
+    if (!('ontouchstart' in window)) {
+      app.style.cursor = '';
+    }
+  }
+
+  // Обработчики для touch-устройств (телефоны, планшеты)
+  app.addEventListener('touchstart', (e) => {
+    if (isAnimating) return;
+    touchStartX = e.changedTouches[0].screenX;
+    touchStartY = e.changedTouches[0].screenY;
+    touchStartTime = Date.now();
+    isSwiping = true;
+    startX = touchStartX;
+    tryAutoPlayMusic(); // Попытка автозапуска при первом касании
+  }, { passive: true });
+
+  app.addEventListener('touchmove', (e) => {
+    if (!isSwiping || isAnimating) return;
+    currentX = e.changedTouches[0].screenX;
+    const deltaX = currentX - startX;
+    const absDeltaX = Math.abs(deltaX);
+    const absDeltaY = Math.abs(e.changedTouches[0].screenY - touchStartY);
+    
+    // Предотвращаем вертикальный скролл только при горизонтальном свайпе
+    if (absDeltaX > absDeltaY && absDeltaX > 10) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  app.addEventListener('touchend', handleSwipeEnd, { passive: true });
+
+  // Обработчики для мыши (ноутбуки, десктопы)
+  if (!('ontouchstart' in window)) {
+    app.addEventListener('mousedown', (e) => {
+      if (isAnimating) return;
+      touchStartX = e.screenX;
+      touchStartY = e.screenY;
+      touchStartTime = Date.now();
+      isSwiping = true;
+      startX = touchStartX;
+      app.style.cursor = 'grabbing';
+      tryAutoPlayMusic(); // Попытка автозапуска при первом клике
+    });
+
+    app.addEventListener('mousemove', (e) => {
+      if (!isSwiping || isAnimating) return;
+      currentX = e.screenX;
+    });
+
+    app.addEventListener('mouseup', handleSwipeEnd);
+
+    app.addEventListener('mouseleave', () => {
+      if (isSwiping) {
+        isSwiping = false;
+        app.style.cursor = '';
+      }
+    });
+  }
+
+
+  // Клавиатурная навигация
+  document.addEventListener('keydown', (e) => {
+    if (isAnimating) return;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      prevScreen();
+    } else if ((e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') && !story[index].final) {
+      e.preventDefault();
+      nextScreen();
+    } else if (e.key === 'm' || e.key === 'M') {
+      // Клавиша M для управления музыкой
+      e.preventDefault();
+      toggleMusic();
+    }
+  });
+
+  // Ожидание GSAP с retries
+  function waitForGSAP(retries = 10) {
+    if (typeof gsap !== 'undefined') {
+      gsapAvailable = true;
+      init();
+    } else if (retries > 0) {
+      setTimeout(() => waitForGSAP(retries - 1), 100);
+    } else {
+      // Fallback без GSAP
+      console.warn('GSAP не загружен, работаем без анимаций');
+      document.body.classList.add('no-gsap');
+      gsapAvailable = false;
+      init();
+    }
+  }
+
+  // Инициализация приложения
+  function init() {
+    render();
+    createProgressIndicator();
+  }
+
+  // Обработчик поворота экрана
+  window.addEventListener('orientationchange', () => {
+    setTimeout(() => {
+      render();
+      createProgressIndicator();
+    }, 300);
+  });
+
+  // Запуск приложения
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      waitForGSAP();
+    });
+  } else {
+    waitForGSAP();
+  }
+</script>
+
+</body>
+</html>
